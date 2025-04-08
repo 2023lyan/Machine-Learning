@@ -2,28 +2,23 @@ import numpy as np
 import util
 
 from linear_model import LinearModel
+from scipy.stats import boxcox
 
 
-def main(train_path, eval_path, pred_path):
-    """Problem 1(e): Gaussian discriminant analysis (GDA)
-
-    Args:
-        train_path: Path to CSV file containing dataset for training.
-        eval_path: Path to CSV file containing dataset for evaluation.
-        pred_path: Path to save predictions.
-    """
-    # Load dataset
-    x_train, y_train = util.load_dataset(train_path, add_intercept=False)
-
-    # *** START CODE HERE ***
-    x_eval, _ = util.load_dataset(eval_path, add_intercept=False)
-    clf = GDA()
-    clf.fit(x_train, y_train)
-    y_pred = clf.predict(x_eval)
-    np.savetxt(pred_path, y_pred.T > 0.5, fmt="%d")
-    util.plot(x_train, y_train, clf.theta, f"output/p01e_gda_{pred_path[-5]}")
-    # *** END CODE HERE ***
-
+def transformation(x, lam):
+    m, n = x.shape
+    x_new = np.zeros((m, n))
+    if set(lam).issubset({0}):
+        for i in range(n):
+            u = x[:, i]
+            u_trans, lam[i] = boxcox(u + 1)
+            x_new[:, i] = u_trans
+    else:
+        for i in range(n):
+            u = x[:, i]
+            u_trans = boxcox(u + 1, lmbda = lam[i])
+            x_new[:, i] = u_trans
+    return x_new, lam
 
 class GDA(LinearModel):
     """Gaussian Discriminant Analysis.
@@ -46,6 +41,7 @@ class GDA(LinearModel):
         """
         # *** START CODE HERE ***
         m, n = x.shape
+        x, lam = transformation(x, lam = np.zeros(n)) # do the box-cox transformation
         y1_num = sum(y == 1)
         y0_num = m - y1_num
         phi = y1_num / m
@@ -68,9 +64,11 @@ class GDA(LinearModel):
         theta_0 = 1 / 2 * (np.matmul(mu_0.T, np.matmul(Sigma_inv, mu_0)) - np.matmul(mu_1.T, np.matmul(Sigma_inv, mu_1))) + np.log(phi / (1 - phi))
         theta_0 = theta_0.reshape(-1)
         theta = theta.reshape(-1)
-        self.theta = np.zeros(n + 1)
-        self.theta[0] = theta_0
-        self.theta[1:] = theta
+        print(theta)
+        self.theta = np.zeros(2 * n + 1)
+        self.theta[0: n] = lam
+        self.theta[n] = theta_0
+        self.theta[n + 1:] = theta
         # *** END CODE HERE ***
 
     def predict(self, x):
@@ -83,7 +81,19 @@ class GDA(LinearModel):
             Outputs of shape (m,).
         """
         # *** START CODE HERE ***
-        theta_0 = self.theta[0]
-        theta = self.theta[1:].reshape(-1, 1)
+        _, n = x.shape
+        x, _ = transformation(x, lam = self.theta[0: n]) # do the box-cox transformation
+        theta_0 = self.theta[n]
+        theta = self.theta[n + 1:].reshape(-1, 1)
         return 1 / (1 + np.exp(- theta.T.dot(x.T) - theta_0))
         # *** END CODE HERE
+
+x_train, y_train = util.load_dataset('../data/ds1_train.csv', add_intercept=False)
+x_eval, _ = util.load_dataset('../data/ds1_valid.csv', add_intercept=False)
+clf = GDA()
+clf.fit(x_train, y_train)
+y_pred = clf.predict(x_eval)
+np.savetxt('output/p01e_box_cox_1.txt', y_pred.T > 0.5, fmt="%d")
+_, num = x_train.shape
+x_train, _ = transformation(x_train, lam = np.zeros(num))
+util.plot(x_train, y_train, clf.theta[num:], f"output/p01e_gda_box_cox_1")
