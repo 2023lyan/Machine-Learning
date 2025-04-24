@@ -19,7 +19,7 @@ def main(train_path, eval_path, pred_path):
     clf = LogisticRegression(eps=1e-5)
     clf.fit(x_train, y_train)
     y_pred = clf.predict(x_eval)
-    np.savetxt(pred_path, y_pred, fmt="%d")
+    np.savetxt(pred_path, y_pred > 0.5, fmt="%d")
     util.plot(x_train, y_train, clf.theta, f"output/p01b_pred_{pred_path[-5]}")
     # *** END CODE HERE ***
 
@@ -80,5 +80,5 @@ class LogisticRegression(LinearModel):
             Outputs of shape (m,).
         """
         # *** START CODE HERE ***
-        return self.g(np.matmul(self.theta, x.T)) > 0.5
+        return self.g(np.matmul(self.theta, x.T))
         # *** END CODE HERE ***
