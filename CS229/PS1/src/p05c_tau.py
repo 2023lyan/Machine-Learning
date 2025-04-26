@@ -24,4 +24,31 @@ def main(tau_values, train_path, valid_path, test_path, pred_path):
     # Run on the test set to get the MSE value
     # Save predictions to pred_path
     # Plot data
+    tau_min = tau_values[0]
+    mse_min = 1e9
+    for tau in tau_values:
+        clf = LocallyWeightedLinearRegression(tau)
+        clf.fit(x_train, y_train)
+        x_eval, y_eval = util.load_dataset(valid_path, add_intercept=True)
+        y_pred = clf.predict(x_eval)
+        mse = np.mean((y_eval - y_pred) ** 2)
+        if(mse < mse_min):
+            tau_min = tau
+            mse_min = mse
+        print(f"MSE = {mse} for tau = {tau}")
+        plt.figure()
+        plt.title(f'tau = {tau}')
+        plt.plot(x_train, y_train, 'bx', linewidth = 2)
+        plt.plot(x_eval, y_pred, 'ro', linewidth = 2)
+        plt.xlabel('x')
+        plt.ylabel('y')
+        plt.savefig(f'output/p05c_tau={tau}.png')
+    print(f"When tau = {tau_min}, mse archives the minimun value {mse_min}.")
+    clf = LocallyWeightedLinearRegression(tau_min)
+    clf.fit(x_train, y_train)
+    x_eval, y_eval = util.load_dataset(test_path, add_intercept=True)
+    y_pred = clf.predict(x_eval)
+    mse = np.mean((y_eval - y_pred) ** 2)
+    print(f"In the test dataset, mse = {mse}")
+    np.savetxt(pred_path, y_pred)
     # *** END CODE HERE ***
