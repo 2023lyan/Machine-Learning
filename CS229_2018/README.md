@@ -18,8 +18,3 @@
   - Select `Conda environment` > `Existing environment` > Button on the right with `…`
   - Select `/Users/YOUR_USERNAME/miniconda3/envs/cs229/bin/python`
   - Select `OK` then `Apply`
-
-## Additional Assignment from cs229_2023_su
-1. Problem 5 in ps1
-2. Problem 1 in ps3
-3. Problem 2 in ps3
