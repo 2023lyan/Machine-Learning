@@ -9,12 +9,12 @@ UNLABELED = -1  # Cluster label for unlabeled data points (do not change)
 
 
 def main(is_semi_supervised, trial_num):
-    """Problem 3: EM for Gaussian Mixture Models (unsupervised and semi-supervised)"""
+    """Problem 4: EM for Gaussian Mixture Models (unsupervised and semi-supervised)"""
     print('Running {} EM algorithm...'
           .format('semi-supervised' if is_semi_supervised else 'unsupervised'))
 
     # Load dataset
-    train_path = os.path.join('..', 'data', 'ds3_train.csv')
+    train_path = os.path.join('..', 'data', 'ds4_train.csv')
     x, z = load_gmm_dataset(train_path)
     x_tilde = None
 
@@ -28,10 +28,26 @@ def main(is_semi_supervised, trial_num):
     # *** START CODE HERE ***
     # (1) Initialize mu and sigma by splitting the m data points uniformly at random
     # into K groups, then calculating the sample mean and covariance for each group
+    m, _ = x.shape
+    mu = []
+    sigma = []
+    id = np.random.permutation(m)
+    for i in range(K):
+        if i != K - 1:
+            x_temp = x[ id[i * (m // K): (i + 1) * (m // K)]]
+        else:
+            x_temp = x[ id[i * (m // K): m]]
+        mu_temp = np.mean(x_temp, axis = 0)
+        mu.append(mu_temp)
+        x_verticle = (x_temp - mu_temp)
+        sigma.append(x_verticle.T @ x_verticle / x_temp.shape[0])
+
     # (2) Initialize phi to place equal probability on each Gaussian
     # phi should be a numpy array of shape (K,)
+    phi = np.ones(K) / K
     # (3) Initialize the w values to place equal probability on each Gaussian
     # w should be a numpy array of shape (m, K)
+    w = np.ones((m, K)) / K
     # *** END CODE HERE ***
 
     if is_semi_supervised:
@@ -49,7 +65,7 @@ def main(is_semi_supervised, trial_num):
 
 
 def run_em(x, w, phi, mu, sigma):
-    """Problem 3(d): EM Algorithm (unsupervised).
+    """Problem 4(d): EM Algorithm (unsupervised).
 
     See inline comments for instructions.
 
@@ -77,18 +93,47 @@ def run_em(x, w, phi, mu, sigma):
         pass  # Just a placeholder for the starter code
         # *** START CODE HERE
         # (1) E-step: Update your estimates in w
+        m = x.shape[0]
+        w = []
+        temp = np.zeros(K)
+        for i in range(m):
+            for j in range(K):
+                temp[j] = (np.exp(-1 / 2 * (x[i, :].reshape(-1, 1) - mu[j].reshape(-1, 1)).T @ (np.linalg.inv(sigma[j])) @ (x[i, :].reshape(-1, 1) - mu[j].reshape(-1, 1))) * phi[j] / np.linalg.det(sigma[j]) ** (1 / 2))
+            temp_total = np.sum(temp)
+            w.append(temp / temp_total)
+        w = np.array(w)
         # (2) M-step: Update the model parameters phi, mu, and sigma
+        phi = np.mean(w, axis = 0)
+        mu = []
+        sigma = []
+        for j in range(K):
+            nume = 0
+            deno = 0
+            for i in range(m):
+                nume += w[i, j] * x[i, :]
+                deno += w[i, j]
+            mu.append(nume / deno)
+        for j in range(K):
+            nume = 0
+            deno = 0
+            for i in range(m):
+                nume += w[i, j] * (x[i, :] - mu[j]).reshape(-1, 1).dot((x[i, :] - mu[j]).reshape(-1, 1).T)
+                deno += w[i, j]
+            sigma.append(nume / deno)
         # (3) Compute the log-likelihood of the data to check for convergence.
         # By log-likelihood, we mean `ll = sum_x[log(sum_z[p(x|z) * p(z)])]`.
         # We define convergence by the first iteration where abs(ll - prev_ll) < eps.
         # Hint: For debugging, recall part (a). We showed that ll should be monotonically increasing.
+        it += 1
+        prev_ll = ll
+        ll = np.sum(np.log(w.dot(phi.reshape(-1, 1))))
         # *** END CODE HERE ***
 
     return w
 
 
 def run_semi_supervised_em(x, x_tilde, z, w, phi, mu, sigma):
-    """Problem 3(e): Semi-Supervised EM Algorithm.
+    """Problem 4(e): Semi-Supervised EM Algorithm.
 
     See inline comments for instructions.
 
@@ -119,10 +164,54 @@ def run_semi_supervised_em(x, x_tilde, z, w, phi, mu, sigma):
         pass  # Just a placeholder for the starter code
         # *** START CODE HERE ***
         # (1) E-step: Update your estimates in w
+        m = x.shape[0]
+        m_tilde = x_tilde.shape[0]
+        w = []
+        temp = np.zeros(K)
+        for i in range(m):
+            for j in range(K):
+                temp[j] = (np.exp(-1 / 2 * (x[i, :].reshape(-1, 1) - mu[j].reshape(-1, 1)).T @ (np.linalg.inv(sigma[j])) @ (x[i, :].reshape(-1, 1) - mu[j].reshape(-1, 1))) * phi[j] / np.linalg.det(sigma[j]) ** (1 / 2))
+            temp_total = np.sum(temp)
+            w.append(temp / temp_total)
+        w = np.array(w)
         # (2) M-step: Update the model parameters phi, mu, and sigma
+        phi = np.zeros(K)
+        for j in range(K):
+            nume = 0
+            deno = m + alpha * m_tilde
+            for i in range(m):
+                nume += w[i, j]
+            for i in range(m_tilde):
+                nume += alpha * 1 if z[i] == j else 0
+            phi[j] = nume / deno
+        mu = []
+        sigma = []
+        for j in range(K):
+            nume = 0
+            deno = 0
+            for i in range(m):
+                nume += w[i, j] * x[i, :]
+                deno += w[i, j]
+            for i in range(m_tilde):
+                nume += alpha * x_tilde[i, :] * 1 if z[i] == j else 0
+                deno += alpha * 1 if z[i] == j else 0
+            mu.append(nume / deno)
+        for j in range(K):
+            nume = 0
+            deno = 0
+            for i in range(m):
+                nume += w[i, j] * (x[i, :] - mu[j]).reshape(-1, 1).dot((x[i, :] - mu[j]).reshape(-1, 1).T)
+                deno += w[i, j]
+            for i in range(m_tilde):
+                nume += alpha * (x_tilde[i, :] - mu[j]).reshape(-1, 1).dot((x_tilde[i, :] - mu[j]).reshape(-1, 1).T) * 1 if z[i] == j else 0
+                deno += alpha * 1 if z[i] == j else 0
+            sigma.append(nume / deno)
         # (3) Compute the log-likelihood of the data to check for convergence.
         # Hint: Make sure to include alpha in your calculation of ll.
         # Hint: For debugging, recall part (a). We showed that ll should be monotonically increasing.
+        it += 1
+        prev_ll = ll
+        ll = np.sum(np.log(w.dot(phi.reshape(-1, 1))))
         # *** END CODE HERE ***
 
     return w
@@ -151,7 +240,7 @@ def plot_gmm_preds(x, z, with_supervision, plot_id):
         alpha = 0.25 if z_ < 0 else 0.75
         plt.scatter(x_1, x_2, marker='.', c=color, alpha=alpha)
 
-    file_name = 'p03_pred{}_{}.pdf'.format('_ss' if with_supervision else '', plot_id)
+    file_name = 'p04_pred{}_{}.png'.format('_ss' if with_supervision else '', plot_id)
     save_path = os.path.join('output', file_name)
     plt.savefig(save_path)
 
@@ -197,5 +286,5 @@ if __name__ == '__main__':
         # Once you've implemented the semi-supervised version,
         # uncomment the following line.
         # You do not need to add any other lines in this code block.
-        # main(with_supervision=True, trial_num=t)
+        main(is_semi_supervised=True, trial_num=t)
         # *** END CODE HERE ***
