@@ -125,6 +125,14 @@ def choose_action(state, mdp_data):
     """
 
     # *** START CODE HERE ***
+    value = mdp_data["value"]
+    transition_probs = mdp_data["transition_probs"]
+    value0 = 0
+    value1 = 0
+    for i in range(mdp_data["num_states"]):
+        value0 += transition_probs[state, i, 0] * value[i]
+        value1 += transition_probs[state, i, 1] * value[i]
+    return 1 if value1 > value0 else 0
     # *** END CODE HERE ***
 
 def update_mdp_transition_counts_reward_counts(mdp_data, state, action, new_state, reward):
@@ -149,6 +157,9 @@ def update_mdp_transition_counts_reward_counts(mdp_data, state, action, new_stat
     """
 
     # *** START CODE HERE ***
+    mdp_data["transition_counts"][state, new_state, action] += 1
+    mdp_data["reward_counts"][new_state, 1] += 1
+    mdp_data["reward_counts"][new_state, 0] += 1 if reward == -1 else 0
     # *** END CODE HERE ***
 
     # This function does not return anything
@@ -172,6 +183,13 @@ def update_mdp_transition_probs_reward(mdp_data):
     """
 
     # *** START CODE HERE ***
+    for i in range(mdp_data["num_states"]):
+        for j in range(2):
+            if np.sum(mdp_data["transition_counts"][i, :, j]) != 0:
+                mdp_data["transition_probs"][i, :, j] = mdp_data["transition_counts"][i, :, j] / np.sum(mdp_data["transition_counts"][i, :, j])
+    for i in range(mdp_data["num_states"]):
+        if mdp_data["reward_counts"][i, 1] != 0:
+            mdp_data["reward"][i] = -mdp_data["reward_counts"][i, 0] / mdp_data["reward_counts"][i, 1]
     # *** END CODE HERE ***
 
     # This function does not return anything
@@ -198,6 +216,19 @@ def update_mdp_value(mdp_data, tolerance, gamma):
     """
 
     # *** START CODE HERE ***
+    it = 0
+    transport_probs = mdp_data["transition_probs"]
+    while True:
+        it += 1
+        conv = True
+        for i in range(mdp_data["num_states"]):
+            new_value = mdp_data["reward"][i] + gamma * np.max(mdp_data["value"] @ transport_probs[i, :, :])
+            if abs(mdp_data["value"][i] - new_value) >= tolerance:
+                conv = False
+            mdp_data["value"][i] = new_value
+        if conv:
+            break
+    return it == 1
     # *** END CODE HERE ***
 
 def main(plot=True):

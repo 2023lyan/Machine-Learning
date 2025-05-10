@@ -41,6 +41,7 @@ def backward_softmax(x, grad_outputs):
     """
     
     # *** START CODE HERE ***
+    return forward_softmax(x) - (grad_outputs != 0).astype("int")
     # *** END CODE HERE ***
 
 def forward_relu(x):
@@ -71,6 +72,7 @@ def backward_relu(x, grad_outputs):
     """
 
     # *** START CODE HERE ***
+    return (x > 0).astype("int") * grad_outputs
     # *** END CODE HERE ***
 
 def get_initial_params():
@@ -155,6 +157,17 @@ def backward_convolution(conv_W, conv_b, data, output_grad):
     """
 
     # *** START CODE HERE ***
+    conv_channels, _, conv_width, conv_height = conv_W.shape
+    _, input_width, input_height = data.shape
+    gradW = np.zeros(conv_W.shape)
+    gradX = np.zeros(data.shape)
+    for channel in range(conv_channels):
+        for i in range(input_width - conv_width + 1): # To update with each dJ/do(output_grad)
+            for j in range(input_height - conv_height + 1):
+                gradW[channel, :, :, : ] += output_grad[channel, i, j] * data[:, i: (i + conv_width), j: (j + conv_height)]
+                gradX[:, i: (i + conv_width), j: (j + conv_height)] += output_grad[channel, i, j] * conv_W[channel, :, :, :]
+    gradB = np.sum(output_grad, axis=(1, 2))
+    return (gradW, gradB, gradX)
     # *** END CODE HERE ***
 
 def forward_max_pool(data, pool_width, pool_height):
@@ -197,6 +210,15 @@ def backward_max_pool(data, pool_width, pool_height, output_grad):
     """
     
     # *** START CODE HERE ***
+    input_channels, input_width, input_height = data.shape
+    grad = np.zeros(data.shape)
+    for x in range(0, input_width, pool_width):
+        for y in range(0, input_height, pool_height):
+            for channel in range(input_channels):
+                cut = data[channel, x: (x + pool_width), y: (y + pool_height)]
+                id = np.unravel_index(np.argmax(cut), cut.shape)
+                grad[channel, (x + id[0]), (y + id[1])] = output_grad[channel, x // pool_width, y // pool_height]
+    return grad
     # *** END CODE HERE ***
 
 def forward_cross_entropy_loss(probabilities, labels):
@@ -234,6 +256,7 @@ def backward_cross_entropy_loss(probabilities, labels):
     """
 
     # *** START CODE HERE ***
+    return -labels / probabilities
     # *** END CODE HERE ***
 
 def forward_linear(weights, bias, data):
@@ -265,6 +288,12 @@ def backward_linear(weights, bias, data, output_grad):
     """
 
     # *** START CODE HERE ***
+    # the weight in code it the transpose of the matrix W
+    gradX = (weights @ output_grad.reshape(-1, 1)).squeeze()
+    gradW = (output_grad.reshape(-1, 1) @ data.reshape(-1, 1).T).T
+    gradB = output_grad
+    
+    return(gradX, gradW, gradB)
     # *** END CODE HERE ***
 
 def forward_prop(data, labels, params):
@@ -324,6 +353,31 @@ def backward_prop(data, labels, params):
     """
 
     # *** START CODE HERE ***
+    W1 = params['W1']
+    b1 = params['b1']
+    W2 = params['W2']
+    b2 = params['b2']
+
+    first_convolution = forward_convolution(W1, b1, data)
+    first_max_pool = forward_max_pool(first_convolution, MAX_POOL_SIZE, MAX_POOL_SIZE)
+    first_after_relu = forward_relu(first_max_pool)
+    flattened = np.reshape(first_after_relu, (-1))
+    logits = forward_linear(W2, b2, flattened)
+    y = forward_softmax(logits)
+    
+    grad_cost = backward_cross_entropy_loss(y, labels)
+    grad_y = backward_softmax(logits, grad_cost)
+    grad_logits, grad_W2, grad_b2 = backward_linear(W2, b2, flattened, grad_y)
+    grad_relu = backward_relu(first_max_pool, grad_logits.reshape(first_max_pool.shape))
+    grad_max_pool = backward_max_pool(first_convolution, MAX_POOL_SIZE, MAX_POOL_SIZE, grad_relu)
+    grad_W1, grad_b1, grad_convolution = backward_convolution(W1, b1, data, grad_max_pool)
+    
+    return {
+        'W1': grad_W1,
+        'b1': grad_b1,
+        'W2': grad_W2,
+        'b2': grad_b2
+    }
     # *** END CODE HERE ***
 
 def forward_prop_batch(batch_data, batch_labels, params, forward_prop_func):
@@ -407,7 +461,7 @@ def nn_train(
     return params, cost_dev, accuracy_dev
 
 def nn_test(data, labels, params):
-    output, cost = forward_pr(data, labels, params)
+    output, cost = forward_prop(data, labels, params)
     accuracy = compute_accuracy(output, labels)
     return accuracy
 

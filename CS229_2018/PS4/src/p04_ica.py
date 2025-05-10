@@ -21,6 +21,7 @@ def update_W(W, x, learning_rate):
     """
     
     # *** START CODE HERE ***
+    updated_W = W + learning_rate * (np.linalg.inv(W.T) - ((W @ x > 0).astype("int") * 2 - 1).reshape(-1, 1) @ (x.reshape(1, -1)))
     # *** END CODE HERE ***
 
     return updated_W
@@ -42,6 +43,7 @@ def unmix(X, W):
 
 
     # *** START CODE HERE ***
+    S = X @ W.T
     # *** END CODE HERE ***
 
     return S
